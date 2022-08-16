@@ -6,8 +6,8 @@ import { fetchPlugin } from "./plugins/fetch-plugin";
 
 const App = () => {
   const ref = useRef<any>();
+  const iframe = useRef<any>();
   const [input, setInput] = useState("");
-  const [code, setCode] = useState("");
 
   const startService = async () => {
     ref.current = await esbuild.startService({
@@ -31,6 +31,8 @@ const App = () => {
       return;
     }
 
+    iframe.current.srcdoc = html;
+
     const result = await ref.current.build({
       entryPoints: ["index.js"],
       bundle: true,
@@ -42,8 +44,27 @@ const App = () => {
       },
     });
 
-    setCode(result.outputFiles[0].text);
+    iframe.current.contentWindow.postMessage(result.outputFiles[0].text, "*");
   };
+
+  const html = `
+    <html>
+      <head></head>
+      <body>
+        <div id="root"></div>
+        <script>
+          window.addEventListener('message', (event) => {
+            try {
+              eval(event.data);
+            } catch(e) {
+              const root = document.querySelector('#root');
+              root.innerHTML = '<div style="color: red"><h4>Runtime Error</h4>' + e + '</div>';
+            }
+          }, false);
+        </script>
+      </body>
+    </html>
+  `;
 
   return (
     <>
@@ -51,7 +72,12 @@ const App = () => {
       <div>
         <button onClick={submitHandler}>Submit</button>
       </div>
-      <pre>{code}</pre>
+      <iframe
+        ref={iframe}
+        title="preview"
+        sandbox="allow-scripts"
+        srcDoc={html}
+      />
     </>
   );
 };
